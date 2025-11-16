@@ -3,17 +3,26 @@ using UnityEngine;
 public class PlayerController : MonoBehaviour
 {
     [Header("Player Movement Properties")]
-    public float moveSpeed;
+    public float maxSpeed;
     public float accTime;
     public float decTime;
-
-    public bool use1 ;
+    public float jumpForce;
+    public bool use1;
     public bool useUpdate ;
 
-    private Vector2 moveInput;
-    private Rigidbody2D playerRB;
     private Vector2 vel = Vector2.zero;
+    private FacingDirection currentDir = FacingDirection.right;
 
+    [Header("Detection Properties")]
+    public float groundBoxCastLength = 1;
+    public LayerMask groundLayer;
+
+    // Input Var
+    private Vector2 moveInput;
+    private bool jumpWasPressed;
+
+    private Rigidbody2D playerRB;
+    private Collider2D playerColl;
 
     public enum FacingDirection
     {
@@ -23,12 +32,13 @@ public class PlayerController : MonoBehaviour
     void Start()
     {
         playerRB = GetComponent<Rigidbody2D>();
+        playerColl = GetComponent<Collider2D>();
     }
 
     void Update()
     {
         GetPlayerInput();
-
+        
         if (useUpdate)
         {
             MoveWithTransform();
@@ -40,15 +50,20 @@ public class PlayerController : MonoBehaviour
         if (!useUpdate)
         {
             MovementUpdate(moveInput);
+        }
 
+        if (jumpWasPressed && IsGrounded())
+        {
+            PlayerJump();
+            jumpWasPressed = false;
         }
     }
 
     #region Player Movement
     private void MoveWithTransform()
     {
-        float acc = moveSpeed / accTime;
-        float dec = moveSpeed / decTime;
+        float acc = maxSpeed / accTime;
+        float dec = maxSpeed / decTime;
         if (moveInput.x != 0)
         {
             vel += acc * Time.deltaTime * new Vector2(moveInput.x, 0);
@@ -57,18 +72,17 @@ public class PlayerController : MonoBehaviour
             vel -= dec * Time.deltaTime * vel.normalized;
         }
 
-        vel = Vector3.ClampMagnitude(vel, moveSpeed);
+        vel = Vector3.ClampMagnitude(vel, maxSpeed);
         transform.position += (Vector3)vel * Time.deltaTime;
     }
-
     private void MovementUpdate(Vector2 _moveInput)
     {
         // method 1
         if (use1)
         {
-            float targetSpeed = _moveInput.x * moveSpeed;
-            float acc = moveSpeed / accTime;
-            float dec = moveSpeed / decTime;
+            float targetSpeed = _moveInput.x * maxSpeed;
+            float acc = maxSpeed / accTime;
+            float dec = maxSpeed / decTime;
 
             float accRate = 0; ;
             if (_moveInput.x != 0)
@@ -90,8 +104,8 @@ public class PlayerController : MonoBehaviour
         else if (!use1)
         {
             Vector2 vel = playerRB.linearVelocity;
-            float acc = moveSpeed / accTime;
-            float dec = moveSpeed / decTime;
+            float acc = maxSpeed / accTime;
+            float dec = maxSpeed / decTime;
 
             if (_moveInput.x != 0)
             {
@@ -101,28 +115,63 @@ public class PlayerController : MonoBehaviour
                 vel -= dec * Time.fixedDeltaTime * vel.normalized;
             }
 
-            vel = Vector2.ClampMagnitude(vel, moveSpeed);
+            vel = Vector2.ClampMagnitude(vel, maxSpeed);
             playerRB.linearVelocity = vel;
+        }
+    }
+    private void PlayerJump()
+    {
+        playerRB.AddForce(jumpForce * Vector2.up, ForceMode2D.Impulse);
+    }
+    #endregion
+
+    #region Player Input
+    private void GetPlayerInput()
+    {
+        moveInput = new Vector2( Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
+        if (Input.GetButtonDown("Jump"))
+        {
+            jumpWasPressed = true;
         }
     }
     #endregion
 
-    private void GetPlayerInput()
-    {
-        moveInput = new Vector2( Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-    }
-
+    #region Condition Check
     public bool IsWalking()
     {
-        return false;
+        if(moveInput.x != 0)
+        {
+            return true;
+        } else {
+            return false;
+        }  
     }
     public bool IsGrounded()
     {
-        return false;
+        Vector2 boxOrigin = playerColl.bounds.center;
+        Vector2 boxSize = playerColl.bounds.size;
+
+        RaycastHit2D groundHit = Physics2D.BoxCast(boxOrigin, boxSize, 0f, Vector2.down, groundBoxCastLength, groundLayer);
+        
+        if(groundHit.collider != null)
+        {
+            return true;
+        } else
+        {
+            return false;
+        }
     }
+    #endregion
 
     public FacingDirection GetFacingDirection()
     {
-        return FacingDirection.left;
+        if (moveInput.x > 0)
+        {
+            currentDir = FacingDirection.right;
+        } else if (moveInput.x < 0)
+        {
+            currentDir = FacingDirection.left;
+        } 
+            return currentDir; 
     }
 }

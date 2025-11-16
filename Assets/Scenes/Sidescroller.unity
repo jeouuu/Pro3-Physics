@@ -312,7 +312,7 @@ GameObject:
   - component: {fileID: 1054579206}
   - component: {fileID: 1054579210}
   - component: {fileID: 1054579209}
-  m_Layer: 0
+  m_Layer: 6
   m_Name: GroundTilemap
   m_TagString: Untagged
   m_Icon: {fileID: 0}
@@ -1701,9 +1701,16 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 86a1ce42ea3e3dd44868493ae73ec06d, type: 3}
   m_Name: 
   m_EditorClassIdentifier: 
-  moveSpeed: 5
+  maxSpeed: 5
   accTime: 1
-  decTime: 0.7
+  decTime: 0.5
+  jumpForce: 6
+  use1: 1
+  useUpdate: 0
+  groundBoxCastLength: 0.1
+  groundLayer:
+    serializedVersion: 2
+    m_Bits: 64
 --- !u!4 &1433354315
 Transform:
   m_ObjectHideFlags: 0
@@ -1713,7 +1720,7 @@ Transform:
   m_GameObject: {fileID: 1433354312}
   serializedVersion: 2
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: -6.21, y: -2.16, z: 0}
+  m_LocalPosition: {x: -4.93, y: -1.9, z: 0}
   m_LocalScale: {x: 1, y: 1, z: 1}
   m_ConstrainProportionsScale: 0
   m_Children:
@@ -1809,7 +1816,7 @@ BoxCollider2D:
   m_UsedByEffector: 0
   m_CompositeOperation: 0
   m_CompositeOrder: 0
-  m_Offset: {x: -0.023415327, y: -0.15850258}
+  m_Offset: {x: -0.023415327, y: -0.11127633}
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
@@ -1819,7 +1826,7 @@ BoxCollider2D:
     drawMode: 0
     adaptiveTiling: 0
   m_AutoTiling: 0
-  m_Size: {x: 0.6293168, y: 0.97466135}
+  m_Size: {x: 0.6293168, y: 0.88020885}
   m_EdgeRadius: 0
 --- !u!50 &1433354318
 Rigidbody2D:
