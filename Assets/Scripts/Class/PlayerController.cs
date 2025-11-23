@@ -7,20 +7,33 @@ public class PlayerController : MonoBehaviour
     public float accTime;
     public float decTime;
     public float jumpForce;
-    public bool use1;
-    public bool useUpdate ;
+    public bool use1 = true;
 
     private Vector2 vel = Vector2.zero;
     private FacingDirection currentDir = FacingDirection.right;
+
+    [Header("Player Jump Properties")]
+    public float apexHeight;
+    public float apexTime;
+    public float maxFallingSpeed;
+    private float gravity;
+    private float initialJumpVelocity;
 
     [Header("Detection Properties")]
     public float groundBoxCastLength = 1;
     public LayerMask groundLayer;
 
+    [Header("Timer Properties")]
+    public float coyoteTime;
+    public float jumpBufferTime;
+    private float coyoteCounter;
+    private float jumpBufferCounter;
+
     // Input Var
     private Vector2 moveInput;
     private bool jumpWasPressed;
 
+    // Get Components Vars
     private Rigidbody2D playerRB;
     private Collider2D playerColl;
 
@@ -33,31 +46,31 @@ public class PlayerController : MonoBehaviour
     {
         playerRB = GetComponent<Rigidbody2D>();
         playerColl = GetComponent<Collider2D>();
-    }
 
+        playerRB.gravityScale = 0;
+        gravity = (-2 * apexHeight) / (apexTime * apexTime);
+        initialJumpVelocity = (2 * apexHeight) / apexTime;
+    }
     void Update()
-    {
+    {     
         GetPlayerInput();
-        
-        if (useUpdate)
-        {
-            MoveWithTransform();
-        }
+        TimerUpdate();
+        JumpCheck();
     }
-
     private void FixedUpdate()
     {
-        if (!useUpdate)
-        {
-            MovementUpdate(moveInput);
-        }
+        SetGravity();
 
-        if (jumpWasPressed && IsGrounded())
+        // move action
+        MovementUpdate(moveInput);
+
+        // jump action
+        if (CanJump())  
         {
             PlayerJump();
-            jumpWasPressed = false;
         }
     }
+
 
     #region Player Movement
     private void MoveWithTransform()
@@ -67,7 +80,7 @@ public class PlayerController : MonoBehaviour
         if (moveInput.x != 0)
         {
             vel += acc * Time.deltaTime * new Vector2(moveInput.x, 0);
-        } else if (moveInput.x == 0)
+        } else if (moveInput.x == 0 && playerRB.linearVelocity != Vector2.zero)
         {
             vel -= dec * Time.deltaTime * vel.normalized;
         }
@@ -121,7 +134,55 @@ public class PlayerController : MonoBehaviour
     }
     private void PlayerJump()
     {
-        playerRB.AddForce(jumpForce * Vector2.up, ForceMode2D.Impulse);
+        //reset bufferCount
+        jumpBufferCounter = 0;
+
+        playerRB.linearVelocityY = initialJumpVelocity;
+    }
+    private void SetGravity()
+    {
+        playerRB.linearVelocityY += gravity * Time.fixedDeltaTime;
+
+        if (playerRB.linearVelocityY < -maxFallingSpeed)
+        {
+            playerRB.linearVelocityY = -maxFallingSpeed;
+        }
+    }
+    #endregion
+
+    #region Player State Updates
+    private void JumpCheck()
+    {
+        if (jumpWasPressed)
+        {
+            jumpBufferCounter = jumpBufferTime;
+        }
+    }
+    private bool CanJump()
+    {
+        // return true if: the coyote timer is bigger than 0
+        return coyoteCounter > 0 && jumpBufferCounter > 0;
+    }
+    #endregion
+
+    #region Timer Updates
+    private void TimerUpdate()
+    {
+        // coyote count
+        if (IsGrounded())
+        {
+            coyoteCounter = coyoteTime;
+        } else 
+        {
+            coyoteCounter -= Time.deltaTime;
+        }
+
+        // buffer count
+        if(jumpBufferCounter > 0)
+        {
+            jumpBufferCounter -= Time.deltaTime;
+        }
+
     }
     #endregion
 
@@ -132,8 +193,11 @@ public class PlayerController : MonoBehaviour
         if (Input.GetButtonDown("Jump"))
         {
             jumpWasPressed = true;
+        } else
+        {
+            jumpWasPressed = false;
         }
-    }
+    }   
     #endregion
 
     #region Condition Check
@@ -161,8 +225,6 @@ public class PlayerController : MonoBehaviour
             return false;
         }
     }
-    #endregion
-
     public FacingDirection GetFacingDirection()
     {
         if (moveInput.x > 0)
@@ -171,7 +233,10 @@ public class PlayerController : MonoBehaviour
         } else if (moveInput.x < 0)
         {
             currentDir = FacingDirection.left;
-        } 
-            return currentDir; 
+        }
+        return currentDir;
     }
+    #endregion
+
+
 }
