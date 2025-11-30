@@ -14,14 +14,14 @@ public class PlayerVisuals : MonoBehaviour
         animator.SetBool(isWalkingHash, playerController.IsWalking());
         animator.SetBool(isGroundedHash, playerController.IsGrounded());
 
-        switch (playerController.GetFacingDirection())
-        {
-            case PlayerController.FacingDirection.left:
-                bodyRenderer.flipX = true;
-                break;
-            case PlayerController.FacingDirection.right:
-                bodyRenderer.flipX = false;
-                break;
-        }
+        //switch (playerController.GetFacingDirection())
+        //{
+        //    case PlayerController.FacingDirection.left:
+        //        bodyRenderer.flipX = true;
+        //        break;
+        //    case PlayerController.FacingDirection.right:
+        //        bodyRenderer.flipX = false;
+        //        break;
+        //}
     }
 }

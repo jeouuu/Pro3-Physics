@@ -2,15 +2,20 @@ using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
+    #region Variables
     [Header("Player Movement Properties")]
     public float maxSpeed;
+    private Vector2 velocity;
+
+    //private FacingDirection currentDir = FacingDirection.right;
+
+    [Header("Acc/Dec")]
     public float accTime;
     public float decTime;
-    public float jumpForce;
-    public bool use1 = true;
+    public float turnAccMultiplier;
+    private float acc;
+    private float dec;
 
-    private Vector2 vel = Vector2.zero;
-    private FacingDirection currentDir = FacingDirection.right;
 
     [Header("Player Jump Properties")]
     public float apexHeight;
@@ -29,7 +34,7 @@ public class PlayerController : MonoBehaviour
     private float coyoteCounter;
     private float jumpBufferCounter;
 
-    // Input Var
+    // Input Var // 
     private Vector2 moveInput;
     private bool jumpWasPressed;
 
@@ -41,96 +46,58 @@ public class PlayerController : MonoBehaviour
     {
         left, right
     }
+    #endregion
 
     void Start()
     {
+        // GetComponent
         playerRB = GetComponent<Rigidbody2D>();
         playerColl = GetComponent<Collider2D>();
 
-        playerRB.gravityScale = 0;
-        gravity = (-2 * apexHeight) / (apexTime * apexTime);
-        initialJumpVelocity = (2 * apexHeight) / apexTime;
+        // Calculate acc/dec
+        acc = maxSpeed / accTime;
+        dec = maxSpeed / decTime;
+
     }
     void Update()
     {     
-        GetPlayerInput();
-        TimerUpdate();
-        JumpCheck();
+        ReadInput();
     }
     private void FixedUpdate()
     {
-        SetGravity();
-
-        // move action
-        MovementUpdate(moveInput);
-
-        // jump action
-        if (CanJump())  
-        {
-            PlayerJump();
-        }
+        PlayerMovement();
     }
 
 
     #region Player Movement
-    private void MoveWithTransform()
+    private void PlayerMovement()
     {
-        float acc = maxSpeed / accTime;
-        float dec = maxSpeed / decTime;
-        if (moveInput.x != 0)
+        // If there's a move input, do the move logics
+        if(moveInput.x != 0)
         {
-            vel += acc * Time.deltaTime * new Vector2(moveInput.x, 0);
-        } else if (moveInput.x == 0 && playerRB.linearVelocity != Vector2.zero)
-        {
-            vel -= dec * Time.deltaTime * vel.normalized;
+            float accToUse = acc;
+
+            // If we are turning, tune the acc with the turnAccMult
+            if (Mathf.Sign(moveInput.x) != Mathf.Sign(velocity.x)) accToUse *= turnAccMultiplier;   
+
+            velocity.x += accToUse * moveInput.x * Time.fixedDeltaTime;
+            velocity.x = Mathf.Clamp(velocity.x, -maxSpeed, maxSpeed);
         }
 
-        vel = Vector3.ClampMagnitude(vel, maxSpeed);
-        transform.position += (Vector3)vel * Time.deltaTime;
-    }
-    private void MovementUpdate(Vector2 _moveInput)
-    {
-        // method 1
-        if (use1)
+        // Else if there's no move input, and the player's velocity is still larger than the threshold: do the decelerate logic
+        // the threshold means in floating-point math, player almost never land on exact zero
+        else if ( Mathf.Abs(velocity.x) > 0.005f)
         {
-            float targetSpeed = _moveInput.x * maxSpeed;
-            float acc = maxSpeed / accTime;
-            float dec = maxSpeed / decTime;
-
-            float accRate = 0; ;
-            if (_moveInput.x != 0)
-            {
-                accRate = acc;
-            } else if (_moveInput.x == 0)
-            {
-                accRate = dec;
-            }
-
-            float speedDiff = targetSpeed - playerRB.linearVelocityX;
-
-            Vector2 force = new Vector2(speedDiff * accRate * playerRB.mass, 0f);
-            playerRB.AddForce(force);
+            velocity.x += dec * -Mathf.Sign(velocity.x) * Time.fixedDeltaTime;
+        } 
+        
+        // when it is close enough to zero, snap it to zero
+        else
+        {
+            velocity.x = 0;
         }
 
-
-        //method 2
-        else if (!use1)
-        {
-            Vector2 vel = playerRB.linearVelocity;
-            float acc = maxSpeed / accTime;
-            float dec = maxSpeed / decTime;
-
-            if (_moveInput.x != 0)
-            {
-                vel += acc * Time.fixedDeltaTime * new Vector2(_moveInput.x, 0);
-            } else if (_moveInput.x == 0)
-            {
-                vel -= dec * Time.fixedDeltaTime * vel.normalized;
-            }
-
-            vel = Vector2.ClampMagnitude(vel, maxSpeed);
-            playerRB.linearVelocity = vel;
-        }
+        playerRB.linearVelocity = velocity;
     }
     private void PlayerJump()
     {
@@ -187,16 +154,10 @@ public class PlayerController : MonoBehaviour
     #endregion
 
     #region Player Input
-    private void GetPlayerInput()
+    private void ReadInput()
     {
-        moveInput = new Vector2( Input.GetAxis("Horizontal"), Input.GetAxis("Vertical"));
-        if (Input.GetButtonDown("Jump"))
-        {
-            jumpWasPressed = true;
-        } else
-        {
-            jumpWasPressed = false;
-        }
+        moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), 0);
+        jumpWasPressed = Input.GetButtonDown("Jump");
     }   
     #endregion
 
@@ -225,17 +186,17 @@ public class PlayerController : MonoBehaviour
             return false;
         }
     }
-    public FacingDirection GetFacingDirection()
-    {
-        if (moveInput.x > 0)
-        {
-            currentDir = FacingDirection.right;
-        } else if (moveInput.x < 0)
-        {
-            currentDir = FacingDirection.left;
-        }
-        return currentDir;
-    }
+    //public FacingDirection GetFacingDirection()
+    //{
+    //    //if (moveInput.x > 0)
+    //    //{
+    //    //    currentDir = FacingDirection.right;
+    //    //} else if (moveInput.x < 0)
+    //    //{
+    //    //    currentDir = FacingDirection.left;
+    //    //}
+    //    //return currentDir;
+    //}
     #endregion
 
 
