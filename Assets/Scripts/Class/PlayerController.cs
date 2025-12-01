@@ -6,8 +6,7 @@ public class PlayerController : MonoBehaviour
     [Header("Player Movement Properties")]
     public float maxSpeed;
     private Vector2 velocity;
-
-    //private FacingDirection currentDir = FacingDirection.right;
+    private FacingDirection currentDir = FacingDirection.right;
 
     [Header("Acc/Dec")]
     public float accTime;
@@ -16,15 +15,20 @@ public class PlayerController : MonoBehaviour
     private float acc;
     private float dec;
 
-
     [Header("Player Jump Properties")]
     public float apexHeight;
     public float apexTime;
     public float maxFallingSpeed;
+    public float jumpCutGravityMult;
+    public float fastFallGravityMult;
+    public int maxJumps;
     private float gravity;
-    private float initialJumpVelocity;
+    private float initialJumpVel;
+    private int usedJumps;
+    private bool isJumpCutting;
+    private bool isDoubleJumping;
 
-    [Header("Detection Properties")]
+    [Header("Collision Properties")]
     public float groundBoxCastLength = 1;
     public LayerMask groundLayer;
 
@@ -37,6 +41,7 @@ public class PlayerController : MonoBehaviour
     // Input Var // 
     private Vector2 moveInput;
     private bool jumpWasPressed;
+    private bool jumpWasRelease;
 
     // Get Components Vars
     private Rigidbody2D playerRB;
@@ -58,18 +63,35 @@ public class PlayerController : MonoBehaviour
         acc = maxSpeed / accTime;
         dec = maxSpeed / decTime;
 
+        // Calculate gravity
+        gravity = -(2 * apexHeight) / (Mathf.Pow(apexTime, 2));
+        initialJumpVel = 2 * apexHeight / apexTime;
+        playerRB.gravityScale = 0;
     }
     void Update()
     {     
         ReadInput();
+        JumpCheck();
+        TimerUpdate();
     }
     private void FixedUpdate()
-    {
+    {   
+        // Jump Action
+        if (CanJump())
+        {
+            PlayerJump(); 
+            jumpWasPressed = false;
+        }     
+
+        // Apply the modified gravity last (after jump logics)
+        SetGravity();
+
+        // Walk Action
         PlayerMovement();
     }
 
 
-    #region Player Movement
+    #region Player Horizontal Movement
     private void PlayerMovement()
     {
         // If there's a move input, do the move logics
@@ -97,19 +119,40 @@ public class PlayerController : MonoBehaviour
             velocity.x = 0;
         }
 
-        playerRB.linearVelocity = velocity;
+        playerRB.linearVelocityX = velocity.x;
     }
+    #endregion
+
+    #region Player Vertical Movement
     private void PlayerJump()
     {
-        //reset bufferCount
+        // Jump Input/Buffer Reset
         jumpBufferCounter = 0;
 
-        playerRB.linearVelocityY = initialJumpVelocity;
+        // Add the usedJump
+        usedJumps++;
+
+        playerRB.linearVelocityY = initialJumpVel;
     }
     private void SetGravity()
     {
-        playerRB.linearVelocityY += gravity * Time.fixedDeltaTime;
+        float gravityToUse = gravity;
 
+        // Apply JumpCut gravity
+        if (isJumpCutting)
+        {
+            gravityToUse = gravity * jumpCutGravityMult;
+        }
+
+        // Apply DoubleJump Gravity
+        if(isDoubleJumping)
+        {
+            gravityToUse = gravity * fastFallGravityMult;
+        }
+
+        playerRB.linearVelocityY += gravityToUse * Time.fixedDeltaTime;
+
+        // Clamp the fallingSpeed
         if (playerRB.linearVelocityY < -maxFallingSpeed)
         {
             playerRB.linearVelocityY = -maxFallingSpeed;
@@ -120,15 +163,49 @@ public class PlayerController : MonoBehaviour
     #region Player State Updates
     private void JumpCheck()
     {
+        // JUMP BUFFER
         if (jumpWasPressed)
         {
             jumpBufferCounter = jumpBufferTime;
         }
+
+        // JUMP CUT
+        if (jumpWasRelease)
+        {
+            if(playerRB.linearVelocityY > 0)
+            {
+                // if the player vel.y is bigger than 0 means still rising.So these 2 condition check: if player release the jump button when still rising...
+                isJumpCutting = true;
+            }
+        }else if (IsGrounded())
+        {
+            // only set it back to false when player grounded, else the jump cut is only true for 1 frame
+            isJumpCutting = false;
+        }
+
+        // Double Jumps
+        if (IsGrounded())
+        {
+            usedJumps = 0;
+        }
+        if(usedJumps == maxJumps)
+        {
+            isDoubleJumping = true;
+        }else isDoubleJumping = false;
     }
     private bool CanJump()
     {
-        // return true if: the coyote timer is bigger than 0
-        return coyoteCounter > 0 && jumpBufferCounter > 0;
+        // First Jump
+        if(usedJumps == 0)
+        {
+            return coyoteCounter > 0 && jumpBufferCounter > 0;
+        } 
+        
+        // Double Jump
+        else
+        {
+            return usedJumps < maxJumps && jumpWasPressed;
+        }
     }
     #endregion
 
@@ -145,11 +222,10 @@ public class PlayerController : MonoBehaviour
         }
 
         // buffer count
-        if(jumpBufferCounter > 0)
+        if (jumpBufferCounter > 0)
         {
             jumpBufferCounter -= Time.deltaTime;
         }
-
     }
     #endregion
 
@@ -157,7 +233,12 @@ public class PlayerController : MonoBehaviour
     private void ReadInput()
     {
         moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), 0);
-        jumpWasPressed = Input.GetButtonDown("Jump");
+        //jumpWasPressed = Input.GetButtonDown("Jump");
+        if (Input.GetButtonDown("Jump"))
+        {
+            jumpWasPressed = true;
+        }
+        jumpWasRelease = Input.GetButtonUp("Jump");
     }   
     #endregion
 
@@ -186,17 +267,17 @@ public class PlayerController : MonoBehaviour
             return false;
         }
     }
-    //public FacingDirection GetFacingDirection()
-    //{
-    //    //if (moveInput.x > 0)
-    //    //{
-    //    //    currentDir = FacingDirection.right;
-    //    //} else if (moveInput.x < 0)
-    //    //{
-    //    //    currentDir = FacingDirection.left;
-    //    //}
-    //    //return currentDir;
-    //}
+    public FacingDirection GetFacingDirection()
+    {
+        if (moveInput.x > 0)
+        {
+            currentDir = FacingDirection.right;
+        } else if (moveInput.x < 0)
+        {
+            currentDir = FacingDirection.left;
+        }
+        return currentDir;
+    }
     #endregion
 
 

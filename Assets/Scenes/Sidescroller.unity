@@ -272,7 +272,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 1
+  m_IsActive: 0
 --- !u!4 &874392358
 Transform:
   m_ObjectHideFlags: 0
@@ -332,7 +332,7 @@ SpriteRenderer:
   m_SortingLayerID: 0
   m_SortingLayer: 0
   m_SortingOrder: 1
-  m_Sprite: {fileID: 444663372, guid: 87f14ff9617bc0145b04ce03190047be, type: 3}
+  m_Sprite: {fileID: 4795172702241575398, guid: e54ec7ac4b0a79448923941099358022, type: 3}
   m_Color: {r: 1, g: 1, b: 1, a: 1}
   m_FlipX: 0
   m_FlipY: 0
@@ -4117,8 +4117,11 @@ MonoBehaviour:
   decTime: 0.2
   turnAccMultiplier: 5
   apexHeight: 3
-  apexTime: 0.4
+  apexTime: 0.5
   maxFallingSpeed: 10
+  jumpCutGravityMult: 2
+  fastFallGravityMult: 2.25
+  maxJumps: 2
   groundBoxCastLength: 0.1
   groundLayer:
     serializedVersion: 2
@@ -4234,7 +4237,7 @@ BoxCollider2D:
   m_SpriteTilingProperty:
     border: {x: 0, y: 0, z: 0, w: 0}
     pivot: {x: 0.5, y: 0.5}
-    oldSize: {x: 1.375, y: 1.2916666}
+    oldSize: {x: 1.4583334, y: 1.2916666}
     newSize: {x: 1.375, y: 1.2916666}
     adaptiveTilingThreshold: 0.5
     drawMode: 0
@@ -4257,7 +4260,7 @@ Rigidbody2D:
   m_Mass: 1
   m_LinearDamping: 0
   m_AngularDamping: 0.05
-  m_GravityScale: 1
+  m_GravityScale: 0
   m_Material: {fileID: 0}
   m_IncludeLayers:
     serializedVersion: 2
@@ -4315,7 +4318,7 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: 
   animator: {fileID: 1433354313}
-  bodyRenderer: {fileID: 874392359}
+  bodyRenderer: {fileID: 1433354316}
   playerController: {fileID: 1433354314}
 --- !u!1 &2077868377
 GameObject:
