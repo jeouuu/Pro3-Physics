@@ -1,8 +1,20 @@
+using Unity.VisualScripting.Antlr3.Runtime.Misc;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
 {
     #region Variables
+    public enum FacingDirection
+    {
+        left, right
+    }
+    public enum PlayerState
+    {
+        idle, walking, jumping, doubleJumping, falling, sliding, dead
+    }
+
+    public static PlayerState currentState = PlayerState.idle;
+
     [Header("Player Movement Properties")]
     public float maxSpeed;
     private Vector2 velocity;
@@ -25,8 +37,19 @@ public class PlayerController : MonoBehaviour
     private float gravity;
     private float initialJumpVel;
     private int usedJumps;
+    private bool isJumping;
     private bool isJumpCutting;
     private bool isDoubleJumping;
+
+    [Header("Wall Slide/Jump Properties")]
+    public float wallRaycastLength;
+    public float slideSpeed;
+    public float slideAccMult;
+    private float lastOnWallTime;
+    private float onRightWallTime;
+    private float onLeftWallTime;
+    private bool isWallJumping = false;
+    private bool isSliding;
 
     [Header("Collision Properties")]
     public float groundBoxCastLength = 1;
@@ -38,6 +61,9 @@ public class PlayerController : MonoBehaviour
     private float coyoteCounter;
     private float jumpBufferCounter;
 
+    [Header("Other Reference")]
+    public Transform spawnPoint;
+
     // Input Var // 
     private Vector2 moveInput;
     private bool jumpWasPressed;
@@ -47,10 +73,7 @@ public class PlayerController : MonoBehaviour
     private Rigidbody2D playerRB;
     private Collider2D playerColl;
 
-    public enum FacingDirection
-    {
-        left, right
-    }
+    private bool touchHazard = false;
     #endregion
 
     void Start()
@@ -73,15 +96,26 @@ public class PlayerController : MonoBehaviour
         ReadInput();
         JumpCheck();
         TimerUpdate();
+        UpdatePlayerState();
+
+        Debug.Log(isSliding);
     }
     private void FixedUpdate()
-    {   
+    {
+        WallCheckCollision();
+
         // Jump Action
         if (CanJump())
         {
             PlayerJump(); 
             jumpWasPressed = false;
         }     
+
+        // Wall Slide
+        if(isSliding)
+        {
+            PlayerWallSlide();
+        }
 
         // Apply the modified gravity last (after jump logics)
         SetGravity();
@@ -94,8 +128,14 @@ public class PlayerController : MonoBehaviour
     #region Player Horizontal Movement
     private void PlayerMovement()
     {
+        if(touchHazard)
+        {
+            playerRB.linearVelocityX = 0;
+            return;
+        }
+
         // If there's a move input, do the move logics
-        if(moveInput.x != 0)
+        if (moveInput.x != 0)
         {
             float accToUse = acc;
 
@@ -134,6 +174,26 @@ public class PlayerController : MonoBehaviour
 
         playerRB.linearVelocityY = initialJumpVel;
     }
+
+    private void PlayerWallSlide()
+    {
+        //We remove the remaining upwards Impulse to prevent upwards sliding (when we still jumping, but already touch the wall, get rid of the upward force)
+        if (playerRB.linearVelocityY > 0)
+        {
+            playerRB.AddForce(-playerRB.linearVelocityY * Vector2.up, ForceMode2D.Impulse);
+        }
+
+        // Cal the speedDiff and force
+        float speedDiff = slideSpeed - playerRB.linearVelocityY;
+        float force = speedDiff * acc * slideAccMult ;
+
+        //So, we clamp the movement here to prevent any over corrections (these aren't noticeable in the Run)
+        //The force applied can't be greater than the (negative) speedDifference * by how many times a second FixedUpdate() is called. For more info research how force are applied to rigidbodies.
+        force = Mathf.Clamp(force, -Mathf.Abs(speedDiff) * (1 / Time.fixedDeltaTime), Mathf.Abs(speedDiff) * (1 / Time.fixedDeltaTime));
+
+        // Apply to the body
+        playerRB.AddForce(force * Vector2.up);
+    }
     private void SetGravity()
     {
         float gravityToUse = gravity;
@@ -161,6 +221,49 @@ public class PlayerController : MonoBehaviour
     #endregion
 
     #region Player State Updates
+    private void UpdatePlayerState()
+    {
+        if (touchHazard)
+        {
+            currentState = PlayerState.dead;
+            return;
+        }
+
+        // first check if grounded
+        if (IsGrounded())
+        {
+            if (IsWalking())
+            {
+                currentState = PlayerState.walking;
+            }
+            else
+            {
+                currentState = PlayerState.idle;
+            }
+        }
+
+        // if we are not grounded, then we are in air   
+        else
+        {
+            if (playerRB.linearVelocityY > 0)
+            {
+                currentState = PlayerState.jumping;
+            }
+            else if (isDoubleJumping)
+            {
+                currentState = PlayerState.doubleJumping;
+            }
+            else if (playerRB.linearVelocityY < 0 && !touchHazard)
+            {
+
+                currentState = PlayerState.falling;
+            }
+            else if (isSliding)
+            {
+                currentState = PlayerState.sliding;
+            }
+        }
+    }
     private void JumpCheck()
     {
         // JUMP BUFFER
@@ -172,12 +275,13 @@ public class PlayerController : MonoBehaviour
         // JUMP CUT
         if (jumpWasRelease)
         {
-            if(playerRB.linearVelocityY > 0)
+            if (playerRB.linearVelocityY > 0)
             {
                 // if the player vel.y is bigger than 0 means still rising.So these 2 condition check: if player release the jump button when still rising...
                 isJumpCutting = true;
             }
-        }else if (IsGrounded())
+        }
+        else if (IsGrounded())
         {
             // only set it back to false when player grounded, else the jump cut is only true for 1 frame
             isJumpCutting = false;
@@ -188,10 +292,31 @@ public class PlayerController : MonoBehaviour
         {
             usedJumps = 0;
         }
-        if(usedJumps == maxJumps)
+        if (usedJumps == maxJumps)
         {
             isDoubleJumping = true;
-        }else isDoubleJumping = false;
+        }
+        else isDoubleJumping = false;
+
+        // Wall Slide
+        if (CanSlide() && ((onLeftWallTime > 0 && moveInput.x < 0) || (onRightWallTime > 0 && moveInput.x > 0)))
+        {
+            isSliding = true;
+        }
+        else
+        {
+            isSliding = false;
+        }
+
+        // Basic Jump Check
+        if (playerRB.linearVelocityY > 0)
+        {
+            isJumping = true;
+        }
+        else if (IsGrounded() || playerRB.linearVelocityY < 0)
+        {
+            isJumping = false;
+        }
     }
     private bool CanJump()
     {
@@ -205,6 +330,19 @@ public class PlayerController : MonoBehaviour
         else
         {
             return usedJumps < maxJumps && jumpWasPressed;
+        }
+    }
+    private bool CanSlide()
+    {
+        // return true when: on a wall & not jumping & not wall jumping & not grounded
+        if (lastOnWallTime > 0 && !isJumping && !isWallJumping && !IsGrounded())
+        {
+            Debug.Log("On Wall and can slide");
+            return true;
+        }
+        else
+        {
+            return false;
         }
     }
     #endregion
@@ -267,6 +405,29 @@ public class PlayerController : MonoBehaviour
             return false;
         }
     }
+
+    private void WallCheckCollision()
+    {
+        Vector2 raycastOrigin = playerColl.bounds.center;
+
+        RaycastHit2D wallHitRight = Physics2D.Raycast(raycastOrigin, Vector2.right, wallRaycastLength, groundLayer);
+        RaycastHit2D wallHitLeft = Physics2D.Raycast(raycastOrigin, Vector2.left, wallRaycastLength, groundLayer);
+
+        // Right Wall Check
+        // The condition check: Am I touching a wall to my right? && not wall jumping
+        if (wallHitRight.collider != null && !isWallJumping)
+        {
+            onRightWallTime = coyoteTime;
+        }
+
+        // Left Wall Check
+        if (wallHitLeft.collider != null && !isWallJumping)
+        {
+            onLeftWallTime = coyoteTime;
+        }
+
+        lastOnWallTime = Mathf.Max(onLeftWallTime, onRightWallTime);
+    }
     public FacingDirection GetFacingDirection()
     {
         if (moveInput.x > 0)
@@ -278,7 +439,22 @@ public class PlayerController : MonoBehaviour
         }
         return currentDir;
     }
+    private void OnTriggerEnter2D(Collider2D collision)
+    {
+        if (collision.gameObject.name == "Hazard")
+        {
+            //Debug.Log("Touch Hazard");
+            touchHazard = true;
+        }
+    }
     #endregion
 
+    #region Animation Events
+    public void RespawnPlayer()
+    {
+        touchHazard = false;
+        transform.position = spawnPoint.position;
+    }
+    #endregion
 
 }

@@ -6,14 +6,11 @@ public class PlayerVisuals : MonoBehaviour
     public SpriteRenderer bodyRenderer;
     public PlayerController playerController;
 
-    private readonly int isWalkingHash = Animator.StringToHash("IsWalking");
-    private readonly int isGroundedHash = Animator.StringToHash("IsGrounded");
 
     void Update()
     {
-        animator.SetBool(isWalkingHash, playerController.IsWalking());
-        animator.SetBool(isGroundedHash, playerController.IsGrounded());
 
+        // Switch for Player's facing direction //
         switch (playerController.GetFacingDirection())
         {
             case PlayerController.FacingDirection.left:
@@ -23,5 +20,33 @@ public class PlayerVisuals : MonoBehaviour
                 bodyRenderer.flipX = false;
                 break;
         }
+
+        // Switch for Player's state //
+        switch(PlayerController.currentState)
+        {
+            case PlayerController.PlayerState.idle:
+                animator.Play("Idle");
+                break;
+            case PlayerController.PlayerState.walking:
+                animator.Play("Walk");
+                break;
+            case PlayerController.PlayerState.jumping:
+                animator.Play("Jump");
+                break;
+            case PlayerController.PlayerState.doubleJumping:
+                animator.Play("DoubleJump");
+                break;
+            case PlayerController.PlayerState.falling:
+                animator.Play("Fall");
+                break;
+            case PlayerController.PlayerState.sliding:
+                animator.Play("Fall");
+                break;
+            case PlayerController.PlayerState.dead:
+                animator.Play("Death"); 
+                break;
+        }
+
+
     }
 }
