@@ -45,6 +45,7 @@ public class PlayerController : MonoBehaviour
     public float wallRaycastLength;
     public float slideSpeed;
     public float slideAccMult;
+
     private float lastOnWallTime;
     private float onRightWallTime;
     private float onLeftWallTime;
@@ -69,10 +70,11 @@ public class PlayerController : MonoBehaviour
     private bool jumpWasPressed;
     private bool jumpWasRelease;
 
-    // Get Components Vars
+    // Get Components Vars //
     private Rigidbody2D playerRB;
     private Collider2D playerColl;
 
+    // Condition Vars //
     private bool touchHazard = false;
     #endregion
 
@@ -86,7 +88,7 @@ public class PlayerController : MonoBehaviour
         acc = maxSpeed / accTime;
         dec = maxSpeed / decTime;
 
-        // Calculate gravity
+        // Calculate gravity and initial jump velocity
         gravity = -(2 * apexHeight) / (Mathf.Pow(apexTime, 2));
         initialJumpVel = 2 * apexHeight / apexTime;
         playerRB.gravityScale = 0;
@@ -97,8 +99,6 @@ public class PlayerController : MonoBehaviour
         JumpCheck();
         TimerUpdate();
         UpdatePlayerState();
-
-        Debug.Log(isSliding);
     }
     private void FixedUpdate()
     {
@@ -114,6 +114,7 @@ public class PlayerController : MonoBehaviour
         // Wall Slide
         if(isSliding)
         {
+            Debug.Log("Wall Sliding");
             PlayerWallSlide();
         }
 
@@ -166,6 +167,9 @@ public class PlayerController : MonoBehaviour
     #region Player Vertical Movement
     private void PlayerJump()
     {
+        // Set Jump Condition
+        isJumping = true;
+
         // Jump Input/Buffer Reset
         jumpBufferCounter = 0;
 
@@ -177,13 +181,15 @@ public class PlayerController : MonoBehaviour
 
     private void PlayerWallSlide()
     {
-        //We remove the remaining upwards Impulse to prevent upwards sliding (when we still jumping, but already touch the wall, get rid of the upward force)
+        Debug.Log("Sliding");   
+
+        //We remove the remaining upwards velocity to prevent upwards sliding (when we still jumping, but already touch the wall, get rid of the upward force)
         if (playerRB.linearVelocityY > 0)
         {
             playerRB.AddForce(-playerRB.linearVelocityY * Vector2.up, ForceMode2D.Impulse);
         }
 
-        // Cal the speedDiff and force
+        // Calculate the speedDiff and force
         float speedDiff = slideSpeed - playerRB.linearVelocityY;
         float force = speedDiff * acc * slideAccMult ;
 
@@ -301,6 +307,7 @@ public class PlayerController : MonoBehaviour
         // Wall Slide
         if (CanSlide() && ((onLeftWallTime > 0 && moveInput.x < 0) || (onRightWallTime > 0 && moveInput.x > 0)))
         {
+            Debug.Log("Start Sliding cuz pressing the direction as wall");
             isSliding = true;
         }
         else
@@ -309,11 +316,7 @@ public class PlayerController : MonoBehaviour
         }
 
         // Basic Jump Check
-        if (playerRB.linearVelocityY > 0)
-        {
-            isJumping = true;
-        }
-        else if (IsGrounded() || playerRB.linearVelocityY < 0)
+        if (isJumping && playerRB.linearVelocityY < 0)  // when the player is falling down
         {
             isJumping = false;
         }
@@ -337,7 +340,7 @@ public class PlayerController : MonoBehaviour
         // return true when: on a wall & not jumping & not wall jumping & not grounded
         if (lastOnWallTime > 0 && !isJumping && !isWallJumping && !IsGrounded())
         {
-            Debug.Log("On Wall and can slide");
+            Debug.Log("On Wall ");
             return true;
         }
         else
@@ -371,7 +374,6 @@ public class PlayerController : MonoBehaviour
     private void ReadInput()
     {
         moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), 0);
-        //jumpWasPressed = Input.GetButtonDown("Jump");
         if (Input.GetButtonDown("Jump"))
         {
             jumpWasPressed = true;
@@ -393,7 +395,7 @@ public class PlayerController : MonoBehaviour
     public bool IsGrounded()
     {
         Vector2 boxOrigin = playerColl.bounds.center;
-        Vector2 boxSize = playerColl.bounds.size;
+        Vector2 boxSize = new Vector2(playerColl.bounds.size.x * 0.5f, playerColl.bounds.size.y); // Slightly smaller than the player's 
 
         RaycastHit2D groundHit = Physics2D.BoxCast(boxOrigin, boxSize, 0f, Vector2.down, groundBoxCastLength, groundLayer);
         
@@ -405,7 +407,6 @@ public class PlayerController : MonoBehaviour
             return false;
         }
     }
-
     private void WallCheckCollision()
     {
         Vector2 raycastOrigin = playerColl.bounds.center;
@@ -421,11 +422,12 @@ public class PlayerController : MonoBehaviour
         }
 
         // Left Wall Check
+        // Same as above
         if (wallHitLeft.collider != null && !isWallJumping)
         {
             onLeftWallTime = coyoteTime;
         }
-
+         
         lastOnWallTime = Mathf.Max(onLeftWallTime, onRightWallTime);
     }
     public FacingDirection GetFacingDirection()
