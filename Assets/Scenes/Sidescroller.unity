@@ -5757,7 +5757,7 @@ MonoBehaviour:
   jumpCutGravityMult: 2
   fastFallGravityMult: 2.25
   maxJumps: 2
-  wallRaycastLength: 0.25
+  wallRaycastLength: 0.5
   slideSpeed: -0.5
   slideAccMult: 2
   groundBoxCastLength: 0.1

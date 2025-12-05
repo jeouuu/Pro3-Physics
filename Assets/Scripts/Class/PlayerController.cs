@@ -17,6 +17,7 @@ public class PlayerController : MonoBehaviour
 
     [Header("Player Movement Properties")]
     public float maxSpeed;
+    public float dashSpeed;
     private Vector2 velocity;
     private FacingDirection currentDir = FacingDirection.right;
 
@@ -67,6 +68,7 @@ public class PlayerController : MonoBehaviour
 
     // Input Var // 
     private Vector2 moveInput;
+    private bool dashWasPressed;
     private bool jumpWasPressed;
     private bool jumpWasRelease;
 
@@ -114,7 +116,13 @@ public class PlayerController : MonoBehaviour
         // Wall Slide
         if(isSliding)
         {
-            PlayerWallSlide();
+           PlayerWallSlide();
+        }
+
+        // Player Dash
+        if(dashWasPressed)
+        {
+            PlayerDash();
         }
 
         // Apply the modified gravity last (after jump logics)
@@ -161,6 +169,12 @@ public class PlayerController : MonoBehaviour
 
         playerRB.linearVelocityX = velocity.x;
     }
+    private void PlayerDash()
+    {
+        dashWasPressed = false;
+
+
+    }
     #endregion
 
     #region Player Vertical Movement
@@ -177,18 +191,23 @@ public class PlayerController : MonoBehaviour
 
         playerRB.linearVelocityY = initialJumpVel;
     }
-
     private void PlayerWallSlide()
     {
-        //We remove the remaining upwards velocity to prevent upwards sliding (when we still jumping, but already touch the wall, get rid of the upward force)
+        ////We remove the remaining upwards velocity to prevent upwards sliding (when we still jumping, but already touch the wall, get rid of the upward force)
+        //if (playerRB.linearVelocityY > 0)
+        //{
+        //    playerRB.AddForce(-playerRB.linearVelocityY * Vector2.up, ForceMode2D.Impulse);
+        //}
+
         if (playerRB.linearVelocityY > 0)
         {
-            playerRB.AddForce(-playerRB.linearVelocityY * Vector2.up, ForceMode2D.Impulse);
+            playerRB.linearVelocityY += -playerRB.linearVelocityY * Time.fixedDeltaTime;
         }
+
 
         // Calculate the speedDiff and force
         float speedDiff = slideSpeed - playerRB.linearVelocityY;
-        float force = speedDiff * acc * slideAccMult ;
+        float force = speedDiff * acc * slideAccMult;
 
         //So, we clamp the movement here to prevent any over corrections (these aren't noticeable in the Run)
         //The force applied can't be greater than the (negative) speedDifference * by how many times a second FixedUpdate() is called. For more info research how force are applied to rigidbodies.
@@ -196,6 +215,11 @@ public class PlayerController : MonoBehaviour
 
         // Apply to the body
         playerRB.AddForce(force * Vector2.up);
+
+    }
+    private void PlayerWallJump()
+    {
+
     }
     private void SetGravity()
     {
@@ -251,7 +275,6 @@ public class PlayerController : MonoBehaviour
             if (isSliding)
             {
                 currentState = PlayerState.sliding;
-                Debug.Log("got here");  
             }
             else if (playerRB.linearVelocityY > 0)
             {
@@ -370,6 +393,10 @@ public class PlayerController : MonoBehaviour
     private void ReadInput()
     {
         moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), 0);
+        if(Input.GetKeyDown(KeyCode.LeftShift))
+        {
+            dashWasPressed = true;
+        }
         if (Input.GetButtonDown("Jump"))
         {
             jumpWasPressed = true;
