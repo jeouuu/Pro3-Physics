@@ -40,7 +40,7 @@ public class PlayerVisuals : MonoBehaviour
                 animator.Play("Fall");
                 break;
             case PlayerController.PlayerState.sliding:
-                animator.Play("Fall");
+                animator.Play("Slide");
                 break;
             case PlayerController.PlayerState.dead:
                 animator.Play("Death"); 

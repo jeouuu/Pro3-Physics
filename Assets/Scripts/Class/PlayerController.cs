@@ -114,7 +114,6 @@ public class PlayerController : MonoBehaviour
         // Wall Slide
         if(isSliding)
         {
-            Debug.Log("Wall Sliding");
             PlayerWallSlide();
         }
 
@@ -181,8 +180,6 @@ public class PlayerController : MonoBehaviour
 
     private void PlayerWallSlide()
     {
-        Debug.Log("Sliding");   
-
         //We remove the remaining upwards velocity to prevent upwards sliding (when we still jumping, but already touch the wall, get rid of the upward force)
         if (playerRB.linearVelocityY > 0)
         {
@@ -251,7 +248,12 @@ public class PlayerController : MonoBehaviour
         // if we are not grounded, then we are in air   
         else
         {
-            if (playerRB.linearVelocityY > 0)
+            if (isSliding)
+            {
+                currentState = PlayerState.sliding;
+                Debug.Log("got here");  
+            }
+            else if (playerRB.linearVelocityY > 0)
             {
                 currentState = PlayerState.jumping;
             }
@@ -263,10 +265,6 @@ public class PlayerController : MonoBehaviour
             {
 
                 currentState = PlayerState.falling;
-            }
-            else if (isSliding)
-            {
-                currentState = PlayerState.sliding;
             }
         }
     }
@@ -307,7 +305,6 @@ public class PlayerController : MonoBehaviour
         // Wall Slide
         if (CanSlide() && ((onLeftWallTime > 0 && moveInput.x < 0) || (onRightWallTime > 0 && moveInput.x > 0)))
         {
-            Debug.Log("Start Sliding cuz pressing the direction as wall");
             isSliding = true;
         }
         else
@@ -340,7 +337,6 @@ public class PlayerController : MonoBehaviour
         // return true when: on a wall & not jumping & not wall jumping & not grounded
         if (lastOnWallTime > 0 && !isJumping && !isWallJumping && !IsGrounded())
         {
-            Debug.Log("On Wall ");
             return true;
         }
         else
