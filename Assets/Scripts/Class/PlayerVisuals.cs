@@ -5,9 +5,7 @@ public class PlayerVisuals : MonoBehaviour
     public Animator animator;
     public SpriteRenderer bodyRenderer;
     public PlayerController playerController;
-
     public TrailRenderer dashTrail;
-
 
     void Update()
     {

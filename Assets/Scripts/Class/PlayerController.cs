@@ -1,6 +1,5 @@
 using System;
 using System.Collections;
-using Unity.VisualScripting.Antlr3.Runtime.Misc;
 using UnityEngine;
 
 public class PlayerController : MonoBehaviour
@@ -125,7 +124,6 @@ public class PlayerController : MonoBehaviour
         // Jump Action       
         if (CanWallJump())
         {
-            // Determine which wall we are on
             int wallDir = onLeftWallTime > 0 ? 1 : -1;  
             PlayerWallJump(wallDir);
 
@@ -254,8 +252,6 @@ public class PlayerController : MonoBehaviour
 
         // apply impulse: opposite of wallDir
         playerRB.linearVelocity = new Vector2(-lastOnWallDir * wallJumpSpeed.x, wallJumpSpeed.y);
-
-        //wallJumpCounter = wallJumpTime;
     }
     private void SetGravity()
     {
@@ -405,16 +401,19 @@ public class PlayerController : MonoBehaviour
         }
 
         // First Jump
-        if(usedJumps == 0)
+        if (usedJumps == 0)
         {
             return coyoteCounter > 0 && jumpBufferCounter > 0;
-        } 
-        
+        }
+
         // Double Jump
-        else 
+        else if (usedJumps > 0 && !IsGrounded())
         {
-            return usedJumps < maxJumps && jumpWasPressed;
-        } 
+            return usedJumps < maxJumps && jumpBufferCounter > 0;
+        } else
+        {
+            return false;
+        }
     }
     private bool CanSlide()
     {
@@ -476,8 +475,8 @@ public class PlayerController : MonoBehaviour
         if (Input.GetButtonDown("Jump"))
         {
             jumpWasPressed = true;
-        }
-        jumpWasRelease = Input.GetButtonUp("Jump");
+        } else jumpWasPressed = false;
+            jumpWasRelease = Input.GetButtonUp("Jump");
     }   
     #endregion
 
