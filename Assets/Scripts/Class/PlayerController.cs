@@ -1,3 +1,5 @@
+using System;
+using System.Collections;
 using Unity.VisualScripting.Antlr3.Runtime.Misc;
 using UnityEngine;
 
@@ -17,8 +19,11 @@ public class PlayerController : MonoBehaviour
 
     [Header("Player Movement Properties")]
     public float maxSpeed;
-    public float dashSpeed;
+    public float dashVel;
     private Vector2 velocity;
+    private bool isDashing;
+    private bool canDash = true;
+    private float dashDuration = 0.15f;
     private FacingDirection currentDir = FacingDirection.right;
 
     [Header("Acc/Dec")]
@@ -42,15 +47,19 @@ public class PlayerController : MonoBehaviour
     private bool isJumpCutting;
     private bool isDoubleJumping;
 
-    [Header("Wall Slide/Jump Properties")]
+    [Header("Player Wall Jump Properties")]
+    public Vector2 wallJumpSpeed;
+    public float wallJumpTime;
+    private float wallJumpCounter;
+    private bool isWallJumping;      
+
+    [Header("Wall Slide Properties")]
     public float wallRaycastLength;
     public float slideSpeed;
     public float slideAccMult;
-
     private float lastOnWallTime;
     private float onRightWallTime;
     private float onLeftWallTime;
-    private bool isWallJumping = false;
     private bool isSliding;
 
     [Header("Collision Properties")]
@@ -75,6 +84,7 @@ public class PlayerController : MonoBehaviour
     // Get Components Vars //
     private Rigidbody2D playerRB;
     private Collider2D playerColl;
+    private TrailRenderer dashTrail;
 
     // Condition Vars //
     private bool touchHazard = false;
@@ -85,6 +95,7 @@ public class PlayerController : MonoBehaviour
         // GetComponent
         playerRB = GetComponent<Rigidbody2D>();
         playerColl = GetComponent<Collider2D>();
+        dashTrail = GetComponentInChildren<TrailRenderer>();
 
         // Calculate acc/dec
         acc = maxSpeed / accTime;
@@ -106,37 +117,49 @@ public class PlayerController : MonoBehaviour
     {
         WallCheckCollision();
 
-        // Jump Action
-        if (CanJump())
+        if(isDashing)
         {
-            PlayerJump(); 
-            jumpWasPressed = false;
-        }     
+            return;
+        }
+
+        // Jump Action       
+        if (CanWallJump())
+        {
+            // Determine which wall we are on
+            int wallDir = onLeftWallTime > 0 ? 1 : -1;  
+            PlayerWallJump(wallDir);
+
+        } else if (CanJump())
+        {
+            PlayerJump();
+        }
 
         // Wall Slide
-        if(isSliding)
+        if (isSliding)
         {
-           PlayerWallSlide();
+            PlayerWallSlide();
         }
 
         // Player Dash
-        if(dashWasPressed)
+        if (dashWasPressed && canDash)
         {
-            PlayerDash();
+            StartCoroutine(PlayerDash());
+            //PlayerDash();
+        } else
+        {
+            // Walk Action
+            PlayerMovement();
         }
 
         // Apply the modified gravity last (after jump logics)
         SetGravity();
-
-        // Walk Action
-        PlayerMovement();
     }
 
 
     #region Player Horizontal Movement
     private void PlayerMovement()
     {
-        if(touchHazard)
+        if (touchHazard)
         {
             playerRB.linearVelocityX = 0;
             return;
@@ -169,17 +192,28 @@ public class PlayerController : MonoBehaviour
 
         playerRB.linearVelocityX = velocity.x;
     }
-    private void PlayerDash()
+    private IEnumerator PlayerDash()
     {
+        isDashing = true;
+        canDash = false; 
         dashWasPressed = false;
 
-
+        int dir = (moveInput.x != 0) ? (int)Mathf.Sign(moveInput.x) : (currentDir == FacingDirection.right) ? 1 : -1;
+        playerRB.linearVelocityX = dir * dashVel;
+        dashTrail.emitting = true;
+        yield return new WaitForSeconds(dashDuration);
+        isDashing = false;
+        dashTrail.emitting = false;
+        yield return new WaitForSeconds(0.2f);
+        canDash = true;
     }
     #endregion
 
     #region Player Vertical Movement
     private void PlayerJump()
     {
+        jumpWasPressed = false;
+
         // Set Jump Condition
         isJumping = true;
 
@@ -193,42 +227,55 @@ public class PlayerController : MonoBehaviour
     }
     private void PlayerWallSlide()
     {
-        ////We remove the remaining upwards velocity to prevent upwards sliding (when we still jumping, but already touch the wall, get rid of the upward force)
-        //if (playerRB.linearVelocityY > 0)
-        //{
-        //    playerRB.AddForce(-playerRB.linearVelocityY * Vector2.up, ForceMode2D.Impulse);
-        //}
-
+        //We remove the remaining upwards velocity to prevent upwards sliding (when we still jumping, but already touch the wall, get rid of the upward force)
         if (playerRB.linearVelocityY > 0)
         {
-            playerRB.linearVelocityY += -playerRB.linearVelocityY * Time.fixedDeltaTime;
+            playerRB.linearVelocityY = 0;
         }
 
-
-        // Calculate the speedDiff and force
-        float speedDiff = slideSpeed - playerRB.linearVelocityY;
-        float force = speedDiff * acc * slideAccMult;
-
-        //So, we clamp the movement here to prevent any over corrections (these aren't noticeable in the Run)
-        //The force applied can't be greater than the (negative) speedDifference * by how many times a second FixedUpdate() is called. For more info research how force are applied to rigidbodies.
-        force = Mathf.Clamp(force, -Mathf.Abs(speedDiff) * (1 / Time.fixedDeltaTime), Mathf.Abs(speedDiff) * (1 / Time.fixedDeltaTime));
-
-        // Apply to the body
-        playerRB.AddForce(force * Vector2.up);
-
+        playerRB.linearVelocityY = Mathf.Lerp(playerRB.linearVelocityY, slideSpeed, acc * slideAccMult * Time.fixedDeltaTime);
     }
-    private void PlayerWallJump()
+    private void PlayerWallJump(int lastOnWallDir)
     {
+        isWallJumping = true;
+        isJumping = false;
+        isDoubleJumping = false;
+        usedJumps = 0;
+       
+        // reset buffer and wall timers so we don't double-trigger
+        jumpBufferCounter = 0;
+        lastOnWallTime = 0;
+        onLeftWallTime = 0;
+        onRightWallTime = 0;
 
+        // cancel downward velocity
+        if (playerRB.linearVelocityY < 0)
+            playerRB.linearVelocityY = 0;
+
+        // apply impulse: opposite of wallDir
+        playerRB.linearVelocity = new Vector2(-lastOnWallDir * wallJumpSpeed.x, wallJumpSpeed.y);
+
+        //wallJumpCounter = wallJumpTime;
     }
     private void SetGravity()
     {
         float gravityToUse = gravity;
 
+        // Apply dashing gravity
+        if (isDashing)
+        {
+            gravityToUse = 0;
+        }
+
         // Apply JumpCut gravity
         if (isJumpCutting)
         {
             gravityToUse = gravity * jumpCutGravityMult;
+        }
+
+        if (isWallJumping)
+        {
+            gravityToUse = gravity;
         }
 
         // Apply DoubleJump Gravity
@@ -325,12 +372,21 @@ public class PlayerController : MonoBehaviour
         }
         else isDoubleJumping = false;
 
+        // Wall Jump
+        if (isWallJumping && Time.time - wallJumpCounter > wallJumpTime)
+        {
+            // If we are currently in the wall jump state AND
+            // (Time.time - wallJumpCounter) tells us how long the wall jump has lasted
+            // If that time is greater than the duration we set for a wall jump,
+            // then we end the wall jump state
+            isWallJumping = false;
+        }
+
         // Wall Slide
         if (CanSlide() && ((onLeftWallTime > 0 && moveInput.x < 0) || (onRightWallTime > 0 && moveInput.x > 0)))
         {
             isSliding = true;
-        }
-        else
+        } else
         {
             isSliding = false;
         }
@@ -343,6 +399,11 @@ public class PlayerController : MonoBehaviour
     }
     private bool CanJump()
     {
+        if (isWallJumping)
+        {
+            return false;
+        }
+
         // First Jump
         if(usedJumps == 0)
         {
@@ -350,22 +411,28 @@ public class PlayerController : MonoBehaviour
         } 
         
         // Double Jump
-        else
+        else 
         {
             return usedJumps < maxJumps && jumpWasPressed;
-        }
+        } 
     }
     private bool CanSlide()
     {
         // return true when: on a wall & not jumping & not wall jumping & not grounded
-        if (lastOnWallTime > 0 && !isJumping && !isWallJumping && !IsGrounded())
+        if (lastOnWallTime > 0 && !isJumping && !IsGrounded() && !isWallJumping)
         {
             return true;
-        }
-        else
+        } else
         {
             return false;
         }
+    }
+    private bool CanWallJump()
+    {
+        // return true when:
+        // player on  wall
+        // player not grounded, cuz when player are touching the ground they can only do jump
+        return lastOnWallTime > 0 && !IsGrounded() && jumpBufferCounter > 0;
     }
     #endregion
 
@@ -386,13 +453,22 @@ public class PlayerController : MonoBehaviour
         {
             jumpBufferCounter -= Time.deltaTime;
         }
+
+        // wall time count
+        if(lastOnWallTime > 0) lastOnWallTime -= Time.deltaTime;
+
+        if (onLeftWallTime > 0) onLeftWallTime -= Time.deltaTime;
+
+        if (onRightWallTime > 0) onRightWallTime -= Time.deltaTime;
+
+        if(wallJumpCounter > 0) wallJumpCounter -= Time.deltaTime;
     }
     #endregion
 
     #region Player Input
     private void ReadInput()
     {
-        moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), 0);
+        moveInput = new Vector2(Input.GetAxisRaw("Horizontal"), Input.GetAxisRaw("Vertical"));
         if(Input.GetKeyDown(KeyCode.LeftShift))
         {
             dashWasPressed = true;
@@ -418,7 +494,7 @@ public class PlayerController : MonoBehaviour
     public bool IsGrounded()
     {
         Vector2 boxOrigin = playerColl.bounds.center;
-        Vector2 boxSize = new Vector2(playerColl.bounds.size.x * 0.5f, playerColl.bounds.size.y); // Slightly smaller than the player's 
+        Vector2 boxSize = new Vector2(playerColl.bounds.size.x * 0.5f, playerColl.bounds.size.y); 
 
         RaycastHit2D groundHit = Physics2D.BoxCast(boxOrigin, boxSize, 0f, Vector2.down, groundBoxCastLength, groundLayer);
         
@@ -438,8 +514,8 @@ public class PlayerController : MonoBehaviour
         RaycastHit2D wallHitLeft = Physics2D.Raycast(raycastOrigin, Vector2.left, wallRaycastLength, groundLayer);
 
         // Right Wall Check
-        // The condition check: Am I touching a wall to my right? && not wall jumping
-        if (wallHitRight.collider != null && !isWallJumping)
+        // The condition check: Am I touching a wall to my right?
+        if (wallHitRight.collider != null  && !isWallJumping)
         {
             onRightWallTime = coyoteTime;
         }
@@ -468,7 +544,6 @@ public class PlayerController : MonoBehaviour
     {
         if (collision.gameObject.name == "Hazard")
         {
-            //Debug.Log("Touch Hazard");
             touchHazard = true;
         }
     }

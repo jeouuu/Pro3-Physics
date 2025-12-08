@@ -6,6 +6,8 @@ public class PlayerVisuals : MonoBehaviour
     public SpriteRenderer bodyRenderer;
     public PlayerController playerController;
 
+    public TrailRenderer dashTrail;
+
 
     void Update()
     {
@@ -22,7 +24,7 @@ public class PlayerVisuals : MonoBehaviour
         }
 
         // Switch for Player's state //
-        switch(PlayerController.currentState)
+        switch (PlayerController.currentState)
         {
             case PlayerController.PlayerState.idle:
                 animator.Play("Idle");
@@ -43,10 +45,8 @@ public class PlayerVisuals : MonoBehaviour
                 animator.Play("Slide");
                 break;
             case PlayerController.PlayerState.dead:
-                animator.Play("Death"); 
+                animator.Play("Death");
                 break;
         }
-
-
     }
 }
