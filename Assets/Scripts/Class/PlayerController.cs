@@ -116,6 +116,7 @@ public class PlayerController : MonoBehaviour
     {
         WallCheckCollision();
 
+        // Dash check
         if(isDashing)
         {
             return;
@@ -142,7 +143,6 @@ public class PlayerController : MonoBehaviour
         if (dashWasPressed && canDash)
         {
             StartCoroutine(PlayerDash());
-            //PlayerDash();
         } else
         {
             // Walk Action
@@ -176,7 +176,7 @@ public class PlayerController : MonoBehaviour
         }
 
         // Else if there's no move input, and the player's velocity is still larger than the threshold: do the decelerate logic
-        // the threshold means in floating-point math, player almost never land on exact zero
+        // the threshold means in floating point, player almost never land on exact zero
         else if ( Mathf.Abs(velocity.x) > 0.005f)
         {
             velocity.x += dec * -Mathf.Sign(velocity.x) * Time.fixedDeltaTime;
@@ -192,16 +192,33 @@ public class PlayerController : MonoBehaviour
     }
     private IEnumerator PlayerDash()
     {
+        // set all the conditions
         isDashing = true;
         canDash = false; 
         dashWasPressed = false;
 
-        int dir = (moveInput.x != 0) ? (int)Mathf.Sign(moveInput.x) : (currentDir == FacingDirection.right) ? 1 : -1;
+        // assign the direction based on input / current direction 
+        int dir = 1;
+        if(moveInput.x != 0) 
+        {
+            dir = (int)Mathf.Sign(moveInput.x);
+        } else
+        {
+            if(currentDir == FacingDirection.right)
+            {
+                dir = 1;
+            } else
+            {
+                dir = -1;
+            }
+        } 
         playerRB.linearVelocityX = dir * dashVel;
         dashTrail.emitting = true;
         yield return new WaitForSeconds(dashDuration);
         isDashing = false;
         dashTrail.emitting = false;
+
+        // Dash Cooldown, wait for a short period before enable the canDash
         yield return new WaitForSeconds(0.2f);
         canDash = true;
     }
@@ -236,12 +253,11 @@ public class PlayerController : MonoBehaviour
     private void PlayerWallJump(int lastOnWallDir)
     {
         isWallJumping = true;
-        isJumping = false;
-        isDoubleJumping = false;
+        isJumping = false;        isDoubleJumping = false;
         usedJumps = 0;
        
         // reset buffer and wall timers so we don't double-trigger
-        jumpBufferCounter = 0;
+        jumpBufferCounter= 0;
         lastOnWallTime = 0;
         onLeftWallTime = 0;
         onRightWallTime = 0;
@@ -388,7 +404,7 @@ public class PlayerController : MonoBehaviour
         }
 
         // Basic Jump Check
-        if (isJumping && playerRB.linearVelocityY < 0)  // when the player is falling down
+        if (isJumping && playerRB.linearVelocityY < 0)  
         {
             isJumping = false;
         }
